@@ -8,10 +8,10 @@ Arguments:
   INPUT   Input directory with observation, reanalysis, and model source data, one subdirectory per source (NetCDF).
   SOURCE  Source name.
   START   Start year.
-  END     End year.
+  END	 End year.
   SEASON  Season. One of: "ANN", "DJF", "MAM", "JJA", or "SON".
   REGION  Region. One of: "BI", "IP", "FR", "ME", "SC", "AL", "MD", or "EA".
-  VAR     Variable name.
+  VAR	 Variable name.
   OUTPUT  Output directory (NetCDF).
 """
 
@@ -39,30 +39,30 @@ LANDSEA_MASK_FILE = "input/landmask/sftlf_EUR-12_ERA5_evaluation_r1i1p1f1_HCLIMc
 LANDSEA_MASK_FILE_1X1DEG = "data/landmask/sftlf_EUR-12_ERA5_evaluation_r1i1p1f1_HCLIMcom-SMHI_HCLIM43-ALADIN_v1-r1_fx_1x1deg.nc"
 
 AUX_VARS = [
-    "lat",
-    "lon",
-    "x",
-    "y",
-    "time",
-    "time_bnds",
-    "crs",
+	"lat",
+	"lon",
+	"x",
+	"y",
+	"time",
+	"time_bnds",
+	"crs",
 ]
 
 # The season months must be continuous.
 SEASONS = {
-    "ANN": list(range(1, 13)),
-    "MAM": [3, 4, 5],
-    "JJA": [6, 7, 8],
-    "SON": [9, 10, 11],
-    "DJF": [12, 1, 2],
+	"ANN": list(range(1, 13)),
+	"MAM": [3, 4, 5],
+	"JJA": [6, 7, 8],
+	"SON": [9, 10, 11],
+	"DJF": [12, 1, 2],
 }
 
 SEASON_YEAR_OFFSET = {
-    "ANN": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "MAM": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "JJA": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "SON": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    "DJF": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+	"ANN": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	"MAM": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	"JJA": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	"SON": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+	"DJF": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
 }
 
 VAR_ATTRS_BLACKLIST = ["missing_value", "_FillValue"]
@@ -70,601 +70,601 @@ VAR_ATTRS_BLACKLIST = ["missing_value", "_FillValue"]
 GLOBAL_ATTRS_BLACKLIST = ["Conventions", "tracking_id"]
 
 META = {
-    ".": {
-        "Conventions": "CF-1.12",
-        "title": "Statistics calculated from observations and EURO-CORDEX models for a time period and season",
-    },
-    "time": {
-        ".dims": ["time"],
-        ".time": True,
-        "standard_name": "time",
-        "long_name": "time",
-        "axis": "T",
-        "bounds": "time_bnds",
-    },
-    "time_bnds": {
-        ".dims": ["time", "bnds"],
-        ".time": True,
-        "standard_name": "time",
-        "long_name": "time bounds",
-    },
-    "year": {
-        ".dims": ["time"],
-        "units": "1",
-        "long_name": "year",
-    },
-    "perc": {
-        ".dims": ["perc"],
-        "long_name": "percentile",
-        "units": "%",
-    },
+	".": {
+		"Conventions": "CF-1.12",
+		"title": "Statistics calculated from observations and EURO-CORDEX models for a time period and season",
+	},
+	"time": {
+		".dims": ["time"],
+		".time": True,
+		"standard_name": "time",
+		"long_name": "time",
+		"axis": "T",
+		"bounds": "time_bnds",
+	},
+	"time_bnds": {
+		".dims": ["time", "bnds"],
+		".time": True,
+		"standard_name": "time",
+		"long_name": "time bounds",
+	},
+	"year": {
+		".dims": ["time"],
+		"units": "1",
+		"long_name": "year",
+	},
+	"perc": {
+		".dims": ["perc"],
+		"long_name": "percentile",
+		"units": "%",
+	},
 }
 
 
 def check_years(years, y1, y2):
-    years = set(years)
-    req_years = set(np.arange(y1, y2 + 1, dtype=int))
-    return len(req_years - years) == 0
+	years = set(years)
+	req_years = set(np.arange(y1, y2 + 1, dtype=int))
+	return len(req_years - years) == 0
 
 
 def check_season(year, month, season_months):
-    season_months = set(season_months)
-    years = set(year)
-    for y in years:
-        mask = year == y
-        months = set(month[mask])
-    if len(season_months - months) > 0:
-        return False
-    return True
+	season_months = set(season_months)
+	years = set(year)
+	for y in years:
+		mask = year == y
+		months = set(month[mask])
+	if len(season_months - months) > 0:
+		return False
+	return True
 
 
 def copy_var_attrs(d, do, var, varo):
-    attrs = ds.attrs(d, var)
-    ds.attrs(
-        do,
-        varo,
-        {k: v for k, v in attrs.items() if k not in VAR_ATTRS_BLACKLIST},
-    )
+	attrs = ds.attrs(d, var)
+	ds.attrs(
+		do,
+		varo,
+		{k: v for k, v in attrs.items() if k not in VAR_ATTRS_BLACKLIST},
+	)
 
 
 def copy_global_attrs(d, do):
-    attrs = ds.attrs(d)
-    ds.attrs(
-        do,
-        None,
-        {k: v for k, v in attrs.items() if k not in GLOBAL_ATTRS_BLACKLIST},
-    )
+	attrs = ds.attrs(d)
+	ds.attrs(
+		do,
+		None,
+		{k: v for k, v in attrs.items() if k not in GLOBAL_ATTRS_BLACKLIST},
+	)
 
 
 def get_mask(year, month, period, months):
-    n = len(year)
-    if not check_years(year, period[0], period[1]):
-        return
-    mask = (year >= period[0]) & (year <= period[1])
+	n = len(year)
+	if not check_years(year, period[0], period[1]):
+		return
+	mask = (year >= period[0]) & (year <= period[1])
 
-    if not check_season(year[mask], month[mask], months):
-        return
+	if not check_season(year[mask], month[mask], months):
+		return
 
-    mask_month = np.zeros(n, bool)
-    for m in months:
-        mask_month |= month == m
-    mask &= mask_month
+	mask_month = np.zeros(n, bool)
+	for m in months:
+		mask_month |= month == m
+	mask &= mask_month
 
-    return mask
+	return mask
 
 
 def calc_period_stat(stat_type, d, do, var, period, season):
-    freq = ds.attr(d, "frequency")
+	freq = ds.attr(d, "frequency")
 
-    if freq == "mon":
-        months = SEASONS[season]
-        mask = get_mask(d["year"], d["month"], period, months)
-    elif freq == "yr" and season == "ANN":
-        mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
-    else:
-        mask = None
+	if freq == "mon":
+		months = SEASONS[season]
+		mask = get_mask(d["year"], d["month"], period, months)
+	elif freq == "yr" and season == "ANN":
+		mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
+	else:
+		mask = None
 
-    if mask is None or np.sum(mask) == 0:
-        return False
+	if mask is None or np.sum(mask) == 0:
+		return False
 
-    data = np.ma.filled(d[var][mask], np.nan)
-    dims = ds.dims(d, var)
-    name = "%s_%s" % (var, stat_type)
-    if stat_type == "mean":
-        do[name] = np.nanmean(data, axis=0)
-        do[name] = np.ma.masked_invalid(do[name])
-        ds.dims(do, name, dims[1:])
-        stat_name = "mean"
-    else:
-        raise KeyError(stat_type)
-    copy_var_attrs(d, do, var, name)
-    freq_name = "annual" if season == "ANN" else "seasonal"
-    long_name = ds.attr(d, "long_name", var=var)
-    if long_name is not None:
-        long_name = long_name.lower() + " %s %s" % (freq_name, stat_name)
-        ds.attr(do, "long_name", long_name, var=name)
-    return True
+	data = np.ma.filled(d[var][mask], np.nan)
+	dims = ds.dims(d, var)
+	name = "%s_%s" % (var, stat_type)
+	if stat_type == "mean":
+		do[name] = np.nanmean(data, axis=0)
+		do[name] = np.ma.masked_invalid(do[name])
+		ds.dims(do, name, dims[1:])
+		stat_name = "mean"
+	else:
+		raise KeyError(stat_type)
+	copy_var_attrs(d, do, var, name)
+	freq_name = "annual" if season == "ANN" else "seasonal"
+	long_name = ds.attr(d, "long_name", var=var)
+	if long_name is not None:
+		long_name = long_name.lower() + " %s %s" % (freq_name, stat_name)
+		ds.attr(do, "long_name", long_name, var=name)
+	return True
 
 
 def calc_annual_stat(stat_type, d, do, var, period, season):
-    freq = ds.attr(d, "frequency")
+	freq = ds.attr(d, "frequency")
 
-    func = {
-        "mean_ts": np.nanmean,
-    }[stat_type]
+	func = {
+		"mean_ts": np.nanmean,
+	}[stat_type]
 
-    years = np.arange(period[0], period[1] + 1)
-    n = len(years)
-    months = SEASONS[season]
-    shape = ds.size(d, var)
+	years = np.arange(period[0], period[1] + 1)
+	n = len(years)
+	months = SEASONS[season]
+	shape = ds.size(d, var)
 
-    if freq == "mon":
-        season_year = np.array(
-            [
-                y + SEASON_YEAR_OFFSET[season][m - 1]
-                for y, m in zip(d["year"], d["month"])
-            ]
-        )
-        mask = get_mask(season_year, d["month"], period, months)
-    elif freq == "yr" and season == "ANN":
-        mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
-    else:
-        mask = None
+	if freq == "mon":
+		season_year = np.array(
+			[
+				y + SEASON_YEAR_OFFSET[season][m - 1]
+				for y, m in zip(d["year"], d["month"])
+			]
+		)
+		mask = get_mask(season_year, d["month"], period, months)
+	elif freq == "yr" and season == "ANN":
+		mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
+	else:
+		mask = None
 
-    if mask is None or np.sum(mask) == 0:
-        return False
+	if mask is None or np.sum(mask) == 0:
+		return False
 
-    dims = ds.dims(d, var)
-    name = "%s_%s" % (var, stat_type)
+	dims = ds.dims(d, var)
+	name = "%s_%s" % (var, stat_type)
 
-    do["time_bnds"] = np.full((n, 2), np.nan)
-    if freq == "mon":
-        d2 = {
-            var: np.ma.filled(d[var][mask], np.nan),
-            "season_year": season_year[mask],
-            ".": {
-                var: {".dims": dims},
-                "season_year": {".dims": ["time"]},
-            },
-        }
-        ds.group_by(d2, "time", d2["season_year"], func)
-        do[name] = np.ma.masked_invalid(d2[var])
-        do["year"] = d2["season_year"]
-        for i, y in enumerate(do["year"]):
-            off1 = -SEASON_YEAR_OFFSET[season][months[0] - 1]
-            off2 = -SEASON_YEAR_OFFSET[season][months[-1] - 1]
-            _, mdays = calendar.monthrange(y + off2, months[-1])
-            do["time_bnds"][i, 0] = aq.from_date([1, y + off1, months[0], 1])
-            do["time_bnds"][i, 1] = (
-                aq.from_date([1, y + off2, months[-1], 1]) + mdays
-            )
-    else:
-        do[name] = d[var][mask]
-        do["year"] = d["year"][mask]
-        do["time_bnds"] = d["time_bnds"][mask]
+	do["time_bnds"] = np.full((n, 2), np.nan)
+	if freq == "mon":
+		d2 = {
+			var: np.ma.filled(d[var][mask], np.nan),
+			"season_year": season_year[mask],
+			".": {
+				var: {".dims": dims},
+				"season_year": {".dims": ["time"]},
+			},
+		}
+		ds.group_by(d2, "time", d2["season_year"], func)
+		do[name] = np.ma.masked_invalid(d2[var])
+		do["year"] = d2["season_year"]
+		for i, y in enumerate(do["year"]):
+			off1 = -SEASON_YEAR_OFFSET[season][months[0] - 1]
+			off2 = -SEASON_YEAR_OFFSET[season][months[-1] - 1]
+			_, mdays = calendar.monthrange(y + off2, months[-1])
+			do["time_bnds"][i, 0] = aq.from_date([1, y + off1, months[0], 1])
+			do["time_bnds"][i, 1] = (
+				aq.from_date([1, y + off2, months[-1], 1]) + mdays
+			)
+	else:
+		do[name] = d[var][mask]
+		do["year"] = d["year"][mask]
+		do["time_bnds"] = d["time_bnds"][mask]
 
-    if not np.array_equal(do["year"], years):
-        print(do["year"], years)
-    assert np.array_equal(do["year"], years)
-    copy_var_attrs(d, do, var, name)
-    ds.dims(do, name, dims)
-    stat_name = {"mean_ts": "mean time series"}[stat_type]
-    freq_name = "annual" if season == "ANN" else "seasonal"
-    long_name = ds.attr(d, "long_name", var=var)
-    if long_name is not None:
-        long_name = long_name.lower() + " %s %s" % (freq_name, stat_name)
-        ds.attr(do, "long_name", long_name, var=name)
-    coordinates = ds.attr(d, "coordinates", var=var)
-    if coordinates is not None:
-        ds.attr(do, "coordinates", "time " + coordinates, var=name)
-    do["time"] = np.mean(do["time_bnds"], axis=1)
+	if not np.array_equal(do["year"], years):
+		print(do["year"], years)
+	assert np.array_equal(do["year"], years)
+	copy_var_attrs(d, do, var, name)
+	ds.dims(do, name, dims)
+	stat_name = {"mean_ts": "mean time series"}[stat_type]
+	freq_name = "annual" if season == "ANN" else "seasonal"
+	long_name = ds.attr(d, "long_name", var=var)
+	if long_name is not None:
+		long_name = long_name.lower() + " %s %s" % (freq_name, stat_name)
+		ds.attr(do, "long_name", long_name, var=name)
+	coordinates = ds.attr(d, "coordinates", var=var)
+	if coordinates is not None:
+		ds.attr(do, "coordinates", "time " + coordinates, var=name)
+	do["time"] = np.mean(do["time_bnds"], axis=1)
 
-    return True
+	return True
 
 
 def calc_annual_cycle(d, do, var, period):
-    mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
-    d2 = {
-        var: np.ma.filled(d[var], np.nan),
-        "month": d["month"],
-        ".": {
-            var: {".dims": list(ds.dims(d, var))},
-            "month": {".dims": ["time"]},
-        },
-    }
-    ds.select(d2, {"time": mask})
-    ds.group_by(d2, "time", d2["month"], np.nanmean)
-    ds.rename_dim(d2, "time", "month")
-    name = f"{var}_ac"
-    do[name] = d2[var]
-    do["month"] = d2["month"]
-    a = ds.attrs(d, var=var)
-    ds.attrs(do, name, a)
-    dims = ds.dims(d2, var)
-    ds.dims(do, name, dims)
-    ds.meta(
-        do,
-        "month",
-        {
-            ".dims": ["month"],
-            "long_name": "month",
-        },
-    )
-    long_name = f"{a['long_name']} monthly-mean annual cycle"
-    ds.attr(do, "long_name", long_name, var=name)
-    return False
+	mask = (d["year"] >= period[0]) & (d["year"] <= period[1])
+	d2 = {
+		var: np.ma.filled(d[var], np.nan),
+		"month": d["month"],
+		".": {
+			var: {".dims": list(ds.dims(d, var))},
+			"month": {".dims": ["time"]},
+		},
+	}
+	ds.select(d2, {"time": mask})
+	ds.group_by(d2, "time", d2["month"], np.nanmean)
+	ds.rename_dim(d2, "time", "month")
+	name = f"{var}_ac"
+	do[name] = d2[var]
+	do["month"] = d2["month"]
+	a = ds.attrs(d, var=var)
+	ds.attrs(do, name, a)
+	dims = ds.dims(d2, var)
+	ds.dims(do, name, dims)
+	ds.meta(
+		do,
+		"month",
+		{
+			".dims": ["month"],
+			"long_name": "month",
+		},
+	)
+	long_name = f"{a['long_name']} monthly-mean annual cycle"
+	ds.attr(do, "long_name", long_name, var=name)
+	return False
 
 
 def calc_trend_elemental(year, data):
-    n = data.shape[0]
-    shape1 = data.shape[1:]
-    trend = np.full(shape1, np.nan)
-    p = np.full(shape1, np.nan)
-    for idx in np.ndindex(shape1):
-        ts = data[(...,) + idx]
-        res = scipy.stats.linregress(year, ts)
-        trend[idx] = res.slope
-        p[idx] = res.pvalue
-    return trend, p
+	n = data.shape[0]
+	shape1 = data.shape[1:]
+	trend = np.full(shape1, np.nan)
+	p = np.full(shape1, np.nan)
+	for idx in np.ndindex(shape1):
+		ts = data[(...,) + idx]
+		res = scipy.stats.linregress(year, ts)
+		trend[idx] = res.slope
+		p[idx] = res.pvalue
+	return trend, p
 
 
 def calc_trend(d, do, var, period, season, region=None):
-    if var + "_mean_ts" not in do:
-        return False
-    name = var + "_trend"
-    name_p = name + "_p"
-    name_mean_ts = var + "_mean_ts"
-    data = do[name_mean_ts]
-    year = do["year"]
-    trend, p = calc_trend_elemental(year, data)
-    do[name] = trend
-    do[name_p] = p
-    dims = ds.dims(do, name_mean_ts)
-    ds.dims(do, name, dims[1:])
-    ds.dims(do, name_p, dims[1:])
-    copy_var_attrs(d, do, var, name)
-    copy_var_attrs(d, do, var, name_p)
-    ds.rm_attr(do, "standard_name", name)
-    ds.rm_attr(do, "standard_name", name_p)
-    long_name = ds.attr(d, "long_name", var=var)
-    ds.attr(do, "long_name", long_name.lower() + " trend", var=name)
-    units = ds.attr(d, "units", var=var)
-    ds.attr(do, "units", units + " year-1", var=name)
-    ds.attr(do, "long_name", "%s trend p-value" % long_name.lower(), var=name_p)
-    ds.attr(do, "units", "1", var=name_p)
-    ds.attr(
-        do,
-        "comment",
-        "calculated using the Wald test using t-distribution (SciPy linregress)",
-        var=name_p,
-    )
-    return True
+	if var + "_mean_ts" not in do:
+		return False
+	name = var + "_trend"
+	name_p = name + "_p"
+	name_mean_ts = var + "_mean_ts"
+	data = do[name_mean_ts]
+	year = do["year"]
+	trend, p = calc_trend_elemental(year, data)
+	do[name] = trend
+	do[name_p] = p
+	dims = ds.dims(do, name_mean_ts)
+	ds.dims(do, name, dims[1:])
+	ds.dims(do, name_p, dims[1:])
+	copy_var_attrs(d, do, var, name)
+	copy_var_attrs(d, do, var, name_p)
+	ds.rm_attr(do, "standard_name", name)
+	ds.rm_attr(do, "standard_name", name_p)
+	long_name = ds.attr(d, "long_name", var=var)
+	ds.attr(do, "long_name", long_name.lower() + " trend", var=name)
+	units = ds.attr(d, "units", var=var)
+	ds.attr(do, "units", units + " year-1", var=name)
+	ds.attr(do, "long_name", "%s trend p-value" % long_name.lower(), var=name_p)
+	ds.attr(do, "units", "1", var=name_p)
+	ds.attr(
+		do,
+		"comment",
+		"calculated using the Wald test using t-distribution (SciPy linregress)",
+		var=name_p,
+	)
+	return True
 
 
 def calc_geo_weights_proj(lon, lat, bounds, proj):
-    mask = np.ones(lon.shape, bool)
-    if bounds[0] is not None:
-        mask &= lon >= bounds[0]
-    if bounds[1] is not None:
-        mask &= lon < bounds[1]
-    if bounds[2] is not None:
-        mask &= lat >= bounds[2]
-    if bounds[3] is not None:
-        mask &= lat < bounds[3]
-    factors = proj.get_factors(lon, lat)
-    w = factors.areal_scale
-    w[~mask] = 0
-    return w
+	mask = np.ones(lon.shape, bool)
+	if bounds[0] is not None:
+		mask &= lon >= bounds[0]
+	if bounds[1] is not None:
+		mask &= lon < bounds[1]
+	if bounds[2] is not None:
+		mask &= lat >= bounds[2]
+	if bounds[3] is not None:
+		mask &= lat < bounds[3]
+	factors = proj.get_factors(lon, lat)
+	w = factors.areal_scale
+	w[~mask] = 0
+	return w
 
 
 def calc_geo_weights_lonlat(lon, lat, bounds):
-    n = len(lon)
-    m = len(lat)
-    if bounds[0] is not None and bounds[1] is not None:
-        if bounds[1] >= bounds[0]:
-            mask_lon = (lon >= bounds[0]) & (lon < bounds[1])
-        else:
-            mask_lon = (lon >= bounds[0]) | (lon < bounds[1])
-    if bounds[2] is not None and bounds[3] is not None:
-        mask_lat = (lat >= bounds[2]) & (lat < bounds[3])
-    w = np.zeros((n, m), float)
-    w[np.ix_(mask_lon, mask_lat)] = 1
-    for i in range(m):
-        w[:, i] *= np.cos(lat[i] * (np.pi / 180))
-    return w
+	n = len(lon)
+	m = len(lat)
+	if bounds[0] is not None and bounds[1] is not None:
+		if bounds[1] >= bounds[0]:
+			mask_lon = (lon >= bounds[0]) & (lon < bounds[1])
+		else:
+			mask_lon = (lon >= bounds[0]) | (lon < bounds[1])
+	if bounds[2] is not None and bounds[3] is not None:
+		mask_lat = (lat >= bounds[2]) & (lat < bounds[3])
+	w = np.zeros((n, m), float)
+	w[np.ix_(mask_lon, mask_lat)] = 1
+	for i in range(m):
+		w[:, i] *= np.cos(lat[i] * (np.pi / 180))
+	return w
 
 
 def calc_geo_mean(d, var, weights):
-    dims = ds.dims(d, var)[-2:]
-    if dims == ["y", "x"] or dims == ["lon", "lat"]:
-        try:
-            ds.apply(
-                d, lambda x: np.ma.average(x, weights=weights), dims, vars=[var]
-            )
-        except Exception as e:
-            print(d[var].shape, dims, weights)
-            raise e
+	dims = ds.dims(d, var)[-2:]
+	if dims == ["y", "x"] or dims == ["lon", "lat"]:
+		try:
+			ds.apply(
+				d, lambda x: np.ma.average(x, weights=weights), dims, vars=[var]
+			)
+		except Exception as e:
+			print(d[var].shape, dims, weights)
+			raise e
 
 
 def convert_units(d):
-    for var in ds.vars(d):
-        sn = ds.attr(d, "standard_name", var=var)
-        units = ds.attr(d, "units", var=var)
-        if units is None:
-            continue
-        units_parts = units.split(" ")
-        offset = 0
-        mul = 1
-        new_units_parts = units_parts
-        if units == "K":
-            offset = -273.15
-            new_units_parts = ["degree_C"]
-        if units_parts[:3] == ["kg", "m-2", "s-1"]:
-            mul = 3600
-            new_units_parts = ["mm", "h-1"] + units_parts[3:]
-        if offset != 0 or mul != 1:
-            data = ds.var(d, var)
-            data = data * mul + offset
-            ds.var(d, var, data)
-        new_units = " ".join(new_units_parts)
-        if new_units != units:
-            ds.attr(d, "units", new_units, var=var)
+	for var in ds.vars(d):
+		sn = ds.attr(d, "standard_name", var=var)
+		units = ds.attr(d, "units", var=var)
+		if units is None:
+			continue
+		units_parts = units.split(" ")
+		offset = 0
+		mul = 1
+		new_units_parts = units_parts
+		if units == "K":
+			offset = -273.15
+			new_units_parts = ["degree_C"]
+		if units_parts[:3] == ["kg", "m-2", "s-1"]:
+			mul = 3600
+			new_units_parts = ["mm", "h-1"] + units_parts[3:]
+		if offset != 0 or mul != 1:
+			data = ds.var(d, var)
+			data = data * mul + offset
+			ds.var(d, var, data)
+		new_units = " ".join(new_units_parts)
+		if new_units != units:
+			ds.attr(d, "units", new_units, var=var)
 
 
 def get_water(landsea, lon, lat):
-    if "landseamask" in landsea:
-        lsm = landsea["landseamask"]
-        lsm_lon = landsea["lon"]
-        lsm_lat = landsea["lat"]
-        lon_flat = lon.flatten()
-        lat_flat = lat.flatten()
-        lon_flat = lon_flat % 360
-        ii = np.searchsorted(lsm_lon, lon_flat)
-        jj = np.searchsorted(lsm_lat, lat_flat)
-        return lsm[jj, ii].reshape(lon.shape)
-    elif "sftlf" in landsea:
-        return 100 - landsea["sftlf"]
-    else:
-        raise ValueError("invalid land mask")
+	if "landseamask" in landsea:
+		lsm = landsea["landseamask"]
+		lsm_lon = landsea["lon"]
+		lsm_lat = landsea["lat"]
+		lon_flat = lon.flatten()
+		lat_flat = lat.flatten()
+		lon_flat = lon_flat % 360
+		ii = np.searchsorted(lsm_lon, lon_flat)
+		jj = np.searchsorted(lsm_lat, lat_flat)
+		return lsm[jj, ii].reshape(lon.shape)
+	elif "sftlf" in landsea:
+		return 100 - landsea["sftlf"]
+	else:
+		raise ValueError("invalid land mask")
 
 
 def get_experiment_id(source):
-    parts = source.split("_")
-    if len(parts) == 3:
-        return parts[1]  # GCM
-    else:
-        return parts[2]  # HCLIM
+	parts = source.split("_")
+	if len(parts) == 3:
+		return parts[1]  # GCM
+	else:
+		return parts[2]  # HCLIM
 
 
 def get_output_filename(
-    output, var, source, frequency, period, season, region_code
+	output, var, source, frequency, period, season, region_code
 ):
-    file = "%s_%s_%s_%d-%d_%s" % (
-        var,
-        source,
-        frequency,
-        period[0],
-        period[1],
-        season,
-    )
-    if region_code is not None:
-        file += "_" + region_code
-    file += "_stat.nc"
-    return os.path.join(output, file)
+	file = "%s_%s_%s_%d-%d_%s" % (
+		var,
+		source,
+		frequency,
+		period[0],
+		period[1],
+		season,
+	)
+	if region_code is not None:
+		file += "_" + region_code
+	file += "_stat.nc"
+	return os.path.join(output, file)
 
 
 def write(do, output, var, source, period, season, region_code):
-    output_filename = get_output_filename(
-        output, var, source, "yr", period, season, region_code
-    )
-    try:
-        os.remove(output_filename)
-    except FileNotFoundError:
-        pass
-    ds.write(
-        output_filename,
-        do,
-        time_units="days since 1950-01-01 00:00 UTC",
-        calendar="standard",
-    )
-    print("-> %s" % output_filename)
+	output_filename = get_output_filename(
+		output, var, source, "yr", period, season, region_code
+	)
+	try:
+		os.remove(output_filename)
+	except FileNotFoundError:
+		pass
+	ds.write(
+		output_filename,
+		do,
+		time_units="days since 1950-01-01 00:00 UTC",
+		calendar="standard",
+	)
+	print("-> %s" % output_filename)
 
 
 def ignore_warnings():
-    warnings.filterwarnings(
-        "ignore", message="All-NaN slice encountered", category=RuntimeWarning
-    )
+	warnings.filterwarnings(
+		"ignore", message="All-NaN slice encountered", category=RuntimeWarning
+	)
 
-    warnings.filterwarnings(
-        "ignore", message="Mean of empty slice", category=RuntimeWarning
-    )
+	warnings.filterwarnings(
+		"ignore", message="Mean of empty slice", category=RuntimeWarning
+	)
 
 
 def read(input_, var):
-    if not os.path.exists(input_):
-        return
-    d = io.read_dataset(
-        input_,
-        {"variable_id": var},
-        AUX_VARS + [var],
-    )
-    if "time" not in d:
-        return
-    if "time_bnds" in d and not "units" in d["."]["time_bnds"]:
-        d["."]["time_bnds"]["units"] = d["."]["time"]["units"]
-        d["."]["time_bnds"]["calendar"] = d["."]["time"]["calendar"]
-        ds.misc.process_cf_time_var(d, "time_bnds")
-    date = aq.to_date(d["time"])
-    d["year"] = date[1]
-    freq = ds.attr(d, "frequency")
-    if freq != "yr":
-        d["month"] = date[2]
-    dims = ds.dims(d, var)
-    if dims[1:] == ["lat", "lon"]:
-        d[var] = np.transpose(d[var], (0, 2, 1))
-        dims = dims[:1] + dims[1:][::-1]
-        ds.dims(d, var, dims)
-    return d
+	if not os.path.exists(input_):
+		return
+	d = io.read_dataset(
+		input_,
+		{"variable_id": var},
+		AUX_VARS + [var],
+	)
+	if "time" not in d:
+		return
+	if "time_bnds" in d and not "units" in d["."]["time_bnds"]:
+		d["."]["time_bnds"]["units"] = d["."]["time"]["units"]
+		d["."]["time_bnds"]["calendar"] = d["."]["time"]["calendar"]
+		ds.misc.process_cf_time_var(d, "time_bnds")
+	date = aq.to_date(d["time"])
+	d["year"] = date[1]
+	freq = ds.attr(d, "frequency")
+	if freq != "yr":
+		d["month"] = date[2]
+	dims = ds.dims(d, var)
+	if dims[1:] == ["lat", "lon"]:
+		d[var] = np.transpose(d[var], (0, 2, 1))
+		dims = dims[:1] + dims[1:][::-1]
+		ds.dims(d, var, dims)
+	return d
 
 
 def set_attrs(do, period, season, var, region):
-    period_s = "%s-%s" % (period[0], period[1])
-    months_s = ", ".join([str(m) for m in SEASONS[season]])
-    ds.attr(do, "period", period_s)
-    ds.attr(do, "months", months_s)
-    ds.attr(do, "season", season)
-    ds.attr(do, "variable_id", var)
-    if region is not None:
-        region_code, region_name, lon1, lon2, lat1, lat2 = region
-        if region_code is not None:
-            ds.attr(do, "region_code", region_code)
-        if region_name is not None:
-            ds.attr(do, "region_name", region_name)
-        if lon1 is not None and lon2 is not None:
-            ds.attr(do, "region_lon_bnds", [lon1, lon2])
-        if lat1 is not None and lat2 is not None:
-            ds.attr(do, "region_lat_bnds", [lat1, lat2])
+	period_s = "%s-%s" % (period[0], period[1])
+	months_s = ", ".join([str(m) for m in SEASONS[season]])
+	ds.attr(do, "period", period_s)
+	ds.attr(do, "months", months_s)
+	ds.attr(do, "season", season)
+	ds.attr(do, "variable_id", var)
+	if region is not None:
+		region_code, region_name, lon1, lon2, lat1, lat2 = region
+		if region_code is not None:
+			ds.attr(do, "region_code", region_code)
+		if region_name is not None:
+			ds.attr(do, "region_name", region_name)
+		if lon1 is not None and lon2 is not None:
+			ds.attr(do, "region_lon_bnds", [lon1, lon2])
+		if lat1 is not None and lat2 is not None:
+			ds.attr(do, "region_lat_bnds", [lat1, lat2])
 
 
 def rm_geo_stuff(d):
-    for k in ["x", "y", "lon", "lat"]:
-        ds.rm(d, k)
-    for var in ds.vars(d):
-        for k in [
-            "cell_methods",
-            "coordinates",
-            "grid_mapping",
-        ]:
-            ds.rm_attr(d, k, var)
+	for k in ["x", "y", "lon", "lat"]:
+		ds.rm(d, k)
+	for var in ds.vars(d):
+		for k in [
+			"cell_methods",
+			"coordinates",
+			"grid_mapping",
+		]:
+			ds.rm_attr(d, k, var)
 
 
 def process_period_season_region(
-    d, source, period, season, var, region, weights=None
+	d, source, period, season, var, region, weights=None
 ):
-    freq = ds.attr(d, "frequency")
-    do = {".": copy.deepcopy(META)}
-    set_attrs(do, period, season, var, region)
+	freq = ds.attr(d, "frequency")
+	do = {".": copy.deepcopy(META)}
+	set_attrs(do, period, season, var, region)
 
-    if region is None:
-        for k in ["x", "y", "lon", "lat"]:
-            if k in do:
-                do[k] = d[k][0, :]
+	if region is None:
+		for k in ["x", "y", "lon", "lat"]:
+			if k in do:
+				do[k] = d[k][0, :]
 
-    for k in ["crs", "height", "x", "y", "lat", "lon"]:
-        if k in d:
-            do[k] = d[k][0] if d[k] is not None else d[k]
-        ds.attrs(do, k, ds.attrs(d, k))
-        ds.dims(do, k, ds.dims(d, k)[1:])
+	for k in ["crs", "height", "x", "y", "lat", "lon"]:
+		if k in d:
+			do[k] = d[k][0] if d[k] is not None else d[k]
+		ds.attrs(do, k, ds.attrs(d, k))
+		ds.dims(do, k, ds.dims(d, k)[1:])
 
-    do_write = False
-    do_write |= calc_annual_stat("mean_ts", d, do, var, period, season)
-    do_write |= calc_period_stat("mean", d, do, var, period, season)
+	do_write = False
+	do_write |= calc_annual_stat("mean_ts", d, do, var, period, season)
+	do_write |= calc_period_stat("mean", d, do, var, period, season)
 
-    if freq == "mon" and season == "ANN" and region is not None:
-        do_write |= calc_annual_cycle(d, do, var, period)
+	if freq == "mon" and season == "ANN" and region is not None:
+		do_write |= calc_annual_cycle(d, do, var, period)
 
-    if region is not None:
-        calc_geo_mean(do, var + "_mean_ts", weights)
-        calc_geo_mean(do, var + "_mean", weights)
-        calc_geo_mean(do, var + "_ac", weights)
-        rm_geo_stuff(do)
+	if region is not None:
+		calc_geo_mean(do, var + "_mean_ts", weights)
+		calc_geo_mean(do, var + "_mean", weights)
+		calc_geo_mean(do, var + "_ac", weights)
+		rm_geo_stuff(do)
 
-    do_write |= calc_trend(d, do, var, period, season, region)
+	do_write |= calc_trend(d, do, var, period, season, region)
 
-    if not do_write:
-        return
+	if not do_write:
+		return
 
-    for k in ["x", "y", "lon", "lat"]:
-        copy_var_attrs(d, do, k, k)
+	for k in ["x", "y", "lon", "lat"]:
+		copy_var_attrs(d, do, k, k)
 
-    convert_units(do)
-    copy_global_attrs(d, do)
+	convert_units(do)
+	copy_global_attrs(d, do)
 
-    exp_key = (
-        "driving_experiment"
-        if "driving_experiment_id" in ds.attrs(do)
-        else "experiment"
-    )
-    experiment_id = get_experiment_id(source)
-    ds.attr(do, exp_key + "_id", experiment_id)
-    if experiment_id.lower() not in ["rean", "obs"]:
-        ds.attr(do, exp_key, "combined historical and future")
+	exp_key = (
+		"driving_experiment"
+		if "driving_experiment_id" in ds.attrs(do)
+		else "experiment"
+	)
+	experiment_id = get_experiment_id(source)
+	ds.attr(do, exp_key + "_id", experiment_id)
+	if experiment_id.lower() not in ["rean", "obs"]:
+		ds.attr(do, exp_key, "combined historical and future")
 
-    ds.attr(do, "frequency", "yr")
+	ds.attr(do, "frequency", "yr")
 
-    return do
+	return do
 
 
 def main(input_, source, start, end, season, region, var, output):
-    period = [start, end]
-    landsea = ds.read(LANDSEA_MASK_FILE)
-    landsea_1x1deg = ds.read(LANDSEA_MASK_FILE_1X1DEG)
+	period = [start, end]
+	landsea = ds.read(LANDSEA_MASK_FILE)
+	landsea_1x1deg = ds.read(LANDSEA_MASK_FILE_1X1DEG)
 
-    freq = "yr" if var in ["su", "gsstart"] else "mon"
+	freq = "yr" if var in ["su", "gsstart"] else "mon"
 
-    d = read(os.path.join(input_, freq, var), var)
-    if d is None:
-        return
-    dims = ds.dims(d, var)
-    lon = d["lon"][0]
-    lat = d["lat"][0]
+	d = read(os.path.join(input_, freq, var), var)
+	if d is None:
+		return
+	dims = ds.dims(d, var)
+	lon = d["lon"][0]
+	lat = d["lat"][0]
 
-    if region is not None:
-        region_desc = [region] + misc.REGIONS[region]
-        region_code, region_name, lon1, lon2, lat1, lat2 = region_desc
-        if np.any(lon >= 180):
-            lon1 = lon1 % 360
-            lon2 = lon2 % 360
-    else:
-        region_desc = None
+	if region is not None:
+		region_desc = [region] + misc.REGIONS[region]
+		region_code, region_name, lon1, lon2, lat1, lat2 = region_desc
+		if np.any(lon >= 180):
+			lon1 = lon1 % 360
+			lon2 = lon2 % 360
+	else:
+		region_desc = None
 
-    if region is not None:
-        bounds = [lon1, lon2, lat1, lat2]
-        if dims[1:] == ["y", "x"]:
-            water = get_water(landsea, lon, lat)
-            proj = pyproj.Proj(d["."]["crs"]["proj4"])
-            weights = calc_geo_weights_proj(lon, lat, bounds, proj)
-        else:
-            # Assume that the lon-lat grid of the input is 1x1 degree.
-            water = 100 - landsea_1x1deg["sftlf"].T
-            weights = calc_geo_weights_lonlat(lon, lat, bounds)
-        weights[water > 50] = 0
-    else:
-        weights = None
+	if region is not None:
+		bounds = [lon1, lon2, lat1, lat2]
+		if dims[1:] == ["y", "x"]:
+			water = get_water(landsea, lon, lat)
+			proj = pyproj.Proj(d["."]["crs"]["proj4"])
+			weights = calc_geo_weights_proj(lon, lat, bounds, proj)
+		else:
+			# Assume that the lon-lat grid of the input is 1x1 degree.
+			water = 100 - landsea_1x1deg["sftlf"].T
+			weights = calc_geo_weights_lonlat(lon, lat, bounds)
+		weights[water > 50] = 0
+	else:
+		weights = None
 
-    ignore_warnings()
+	ignore_warnings()
 
-    try:
-        do = process_period_season_region(
-            d,
-            source,
-            period,
-            season,
-            var,
-            region_desc,
-            weights=weights,
-        )
-        if do is not None:
-            write(do, output, var, source, period, season, region)
-    except Exception as e:
-        tb_str = traceback.format_exc()
-        warnings.warn(
-            f"error in processing source {source!r}, period {period!r}, seasons {season!r}, variable {var!r}, region {region!r}: {tb_str}"
-        )
+	try:
+		do = process_period_season_region(
+			d,
+			source,
+			period,
+			season,
+			var,
+			region_desc,
+			weights=weights,
+		)
+		if do is not None:
+			write(do, output, var, source, period, season, region)
+	except Exception as e:
+		tb_str = traceback.format_exc()
+		warnings.warn(
+			f"error in processing source {source!r}, period {period!r}, seasons {season!r}, variable {var!r}, region {region!r}: {tb_str}"
+		)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) not in [8, 9]:
-        sys.stderr.write(sys.modules[__name__].__doc__)
-        sys.exit(1)
+	if len(sys.argv) not in [8, 9]:
+		sys.stderr.write(sys.modules[__name__].__doc__)
+		sys.exit(1)
 
-    input_ = sys.argv[1]
-    source = sys.argv[2]
-    start = int(sys.argv[3])
-    end = int(sys.argv[4])
-    season = sys.argv[5]
-    region = sys.argv[6] if len(sys.argv) == 9 else None
-    var = sys.argv[-2]
-    output = sys.argv[-1]
+	input_ = sys.argv[1]
+	source = sys.argv[2]
+	start = int(sys.argv[3])
+	end = int(sys.argv[4])
+	season = sys.argv[5]
+	region = sys.argv[6] if len(sys.argv) == 9 else None
+	var = sys.argv[-2]
+	output = sys.argv[-1]
 
-    main(input_, source, start, end, season, region, var, output)
+	main(input_, source, start, end, season, region, var, output)

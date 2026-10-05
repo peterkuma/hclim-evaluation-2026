@@ -10,219 +10,219 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
 SOURCE_PREFIX = {
-    "HCLIM43-ALADIN": "HC",
+	"HCLIM43-ALADIN": "HC",
 }
 
 REGIONS = {
-    # code: name, lon1, lon2, lat1, lat2
-    "BI": ["British Isles", -10, 2, 50, 59],
-    "IP": ["Iberian Peninsula", -10, 3, 36, 44],
-    "FR": ["France", -5, 5, 44, 50],
-    "ME": ["Mid-Europe", 2, 16, 48, 55],
-    "SC": ["Scandinavia", 5, 30, 55, 70],
-    "AL": ["Alps", 5, 15, 44, 48],
-    "MD": ["Mediterranean", 3, 25, 36, 44],
-    "EA": ["Eastern Europe", 16, 30, 44, 55],
+	# code: name, lon1, lon2, lat1, lat2
+	"BI": ["British Isles", -10, 2, 50, 59],
+	"IP": ["Iberian Peninsula", -10, 3, 36, 44],
+	"FR": ["France", -5, 5, 44, 50],
+	"ME": ["Mid-Europe", 2, 16, 48, 55],
+	"SC": ["Scandinavia", 5, 30, 55, 70],
+	"AL": ["Alps", 5, 15, 44, 48],
+	"MD": ["Mediterranean", 3, 25, 36, 44],
+	"EA": ["Eastern Europe", 16, 30, 44, 55],
 }
 
 VARS = [
-    "pr",
-    "psl",
-    "tas",
-    "tasmax",
-    "tasmin",
+	"pr",
+	"psl",
+	"tas",
+	"tasmax",
+	"tasmin",
 ]
 
 UNITS_PRETTY = {
-    "degree_C": "°C",
-    "year-1": "yr$^{-1}$",
-    "decade-1": "decade$^{-1}$",
-    "mon-1": "mon$^{-1}$",
+	"degree_C": "°C",
+	"year-1": "yr$^{-1}$",
+	"decade-1": "decade$^{-1}$",
+	"mon-1": "mon$^{-1}$",
 }
 
 
 def parse_source(source):
-    parts = source.split("_")
-    if len(parts) == 7:
-        if parts[5] == "ERA5":
-            return {
-                "domain_id": parts[0],
-                "driving_source_id": parts[1],
-                "experiment_id": parts[2],
-                "driving_variant_label": parts[3],
-                "institute_id": parts[4],
-                "source_id": parts[5],
-            }
-        elif parts[1] in ["OBS", "REAN"]:
-            return {
-                "domain_id": parts[0],
-                "driving_source_id": parts[1],
-                "experiment_id": parts[2],
-                "driving_variant_label": parts[3],
-                "institution_id": parts[4],
-                "source_id": parts[5],
-                "version_realization": parts[6],
-            }
-        else:
-            return {
-                "domain_id": parts[0],
-                "driving_source_id": parts[1],
-                "driving_experiment_id": parts[2],
-                "driving_variant_label": parts[3],
-                "institution_id": parts[4],
-                "source_id": parts[5],
-                "version_realization": parts[6],
-            }
-    elif len(parts) == 3:
-        return {
-            "source_id": parts[0],
-            "experiment_id": parts[1],
-            "variant_label": parts[2],
-        }
-    else:
-        return None
+	parts = source.split("_")
+	if len(parts) == 7:
+		if parts[5] == "ERA5":
+			return {
+				"domain_id": parts[0],
+				"driving_source_id": parts[1],
+				"experiment_id": parts[2],
+				"driving_variant_label": parts[3],
+				"institute_id": parts[4],
+				"source_id": parts[5],
+			}
+		elif parts[1] in ["OBS", "REAN"]:
+			return {
+				"domain_id": parts[0],
+				"driving_source_id": parts[1],
+				"experiment_id": parts[2],
+				"driving_variant_label": parts[3],
+				"institution_id": parts[4],
+				"source_id": parts[5],
+				"version_realization": parts[6],
+			}
+		else:
+			return {
+				"domain_id": parts[0],
+				"driving_source_id": parts[1],
+				"driving_experiment_id": parts[2],
+				"driving_variant_label": parts[3],
+				"institution_id": parts[4],
+				"source_id": parts[5],
+				"version_realization": parts[6],
+			}
+	elif len(parts) == 3:
+		return {
+			"source_id": parts[0],
+			"experiment_id": parts[1],
+			"variant_label": parts[2],
+		}
+	else:
+		return None
 
 
 def get_source_name(a):
-    if "domain_id" in a:
-        eid = a.get("driving_experiment_id", a.get("experiment_id"))
-        eid = eid.lower() if eid is not None else None
-        x = [
-            a["domain_id"],
-            a["driving_source_id"],
-            eid,
-            a["driving_variant_label"],
-            a.get("institution_id", a.get("institute_id")),
-            a["source_id"],
-            a.get("version_realization", "v1-r1"),
-        ]
-    else:
-        try:
-            x = [
-                a["source_id"],
-                a["experiment_id"].lower(),
-                a.get("variant_label", a.get("driving_variant_label")),
-            ]
-        except KeyError:
-            print(a)
-            raise
-    return "_".join(x)
+	if "domain_id" in a:
+		eid = a.get("driving_experiment_id", a.get("experiment_id"))
+		eid = eid.lower() if eid is not None else None
+		x = [
+			a["domain_id"],
+			a["driving_source_id"],
+			eid,
+			a["driving_variant_label"],
+			a.get("institution_id", a.get("institute_id")),
+			a["source_id"],
+			a.get("version_realization", "v1-r1"),
+		]
+	else:
+		try:
+			x = [
+				a["source_id"],
+				a["experiment_id"].lower(),
+				a.get("variant_label", a.get("driving_variant_label")),
+			]
+		except KeyError:
+			print(a)
+			raise
+	return "_".join(x)
 
 
 def get_source_title(attrs):
-    sid = attrs.get("source_id")
-    did = attrs.get("driving_source_id")
-    if did == "REAN" or did is None:
-        return sid
-    elif did == "OBS":
-        return "E-OBS"
-    elif did == "ENS":
-        return did
-    else:
-        prefix = SOURCE_PREFIX.get(sid, sid)
-        return prefix + "(" + did + ")"
+	sid = attrs.get("source_id")
+	did = attrs.get("driving_source_id")
+	if did == "REAN" or did is None:
+		return sid
+	elif did == "OBS":
+		return "E-OBS"
+	elif did == "ENS":
+		return did
+	else:
+		prefix = SOURCE_PREFIX.get(sid, sid)
+		return prefix + "(" + did + ")"
 
 
 def get_pretty_units(x):
-    parts = x.split(" ")
-    return " ".join([UNITS_PRETTY.get(part, part) for part in parts])
+	parts = x.split(" ")
+	return " ".join([UNITS_PRETTY.get(part, part) for part in parts])
 
 
 def get_pretty_var_label(long_name):
-    return (
-        long_name.replace("sea level", "sea-level")
-        .replace(" monthly mean", "")
-        .replace("minimum", "min.")
-        .replace("maximum", "max.")
-        .replace("temperature", "temp.")
-        .capitalize()
-    )
+	return (
+		long_name.replace("sea level", "sea-level")
+		.replace(" monthly mean", "")
+		.replace("minimum", "min.")
+		.replace("maximum", "max.")
+		.replace("temperature", "temp.")
+		.capitalize()
+	)
 
 
 def convert_pretty_units(x, units):
-    parts = units.split(" ")
-    if parts[:3] == ["kg", "m-2", "s-1"]:
-        x = x * 3600
-        parts = ["mm", "h-1"] + parts[3:]
-    if parts[:2] == ["mm", "h-1"]:
-        x = x * 24 * (365.2425 / 12)
-        parts[1] = "mon-1"
-    if parts == ["K", "year-1"]:
-        parts[0] = "degree_C"
-    if parts[0] == "Pa":
-        x = x * 1e-2
-        parts[0] = "hPa"
-    if parts[-1] == "year-1":
-        x = x * 10
-        parts[-1] = "decade-1"
-    return x, " ".join(parts)
+	parts = units.split(" ")
+	if parts[:3] == ["kg", "m-2", "s-1"]:
+		x = x * 3600
+		parts = ["mm", "h-1"] + parts[3:]
+	if parts[:2] == ["mm", "h-1"]:
+		x = x * 24 * (365.2425 / 12)
+		parts[1] = "mon-1"
+	if parts == ["K", "year-1"]:
+		parts[0] = "degree_C"
+	if parts[0] == "Pa":
+		x = x * 1e-2
+		parts[0] = "hPa"
+	if parts[-1] == "year-1":
+		x = x * 10
+		parts[-1] = "decade-1"
+	return x, " ".join(parts)
 
 
 def normalize_monthly_time(time):
-    date = aq.to_date(time)
-    year, month = date[1], date[2]
-    mdays = np.array(
-        [calendar.monthrange(y, m)[1] for y, m in zip(year, month)]
-    )
-    day = mdays // 2
-    hour = 12 * (mdays % 2)
-    time = aq.from_date(
-        [
-            np.ones(len(year)),
-            year,
-            month,
-            day,
-            hour,
-        ]
-    )
-    return time
+	date = aq.to_date(time)
+	year, month = date[1], date[2]
+	mdays = np.array(
+		[calendar.monthrange(y, m)[1] for y, m in zip(year, month)]
+	)
+	day = mdays // 2
+	hour = 12 * (mdays % 2)
+	time = aq.from_date(
+		[
+			np.ones(len(year)),
+			year,
+			month,
+			day,
+			hour,
+		]
+	)
+	return time
 
 
 def load_mpl_fonts():
-    try:
-        for variant in ["Regular", "Bold"]:
-            mpl.font_manager.fontManager.addfont(
-                os.path.join(
-                    os.path.expanduser("~"),
-                    ".fonts",
-                    "OpenSans-%s.ttf" % variant,
-                )
-            )
-    except:
-        pass
+	try:
+		for variant in ["Regular", "Bold"]:
+			mpl.font_manager.fontManager.addfont(
+				os.path.join(
+					os.path.expanduser("~"),
+					".fonts",
+					"OpenSans-%s.ttf" % variant,
+				)
+			)
+	except:
+		pass
 
 
 class SquareHandlerTuple(HandlerTuple):
-    def create_artists(
-        self,
-        legend,
-        orig_handle,
-        xdescent,
-        ydescent,
-        width,
-        height,
-        fontsize,
-        trans,
-    ):
-        size = min(width, height)
-        x0 = xdescent + (width - size) / 2
-        y0 = ydescent + (height - size) / 2
-        a = []
-        for h in orig_handle:
-            if isinstance(h, Rectangle):
-                a += [
-                    Rectangle(
-                        (x0, y0),
-                        size,
-                        size,
-                        fill=h.get_fill(),
-                        facecolor=h.get_facecolor(),
-                        edgecolor=h.get_edgecolor(),
-                        transform=trans,
-                    )
-                ]
-            elif isinstance(h, Line2D):
-                x = [x0 + size * xi for xi in h.get_xdata()]
-                y = [y0 + size * yi for yi in h.get_ydata()]
-                a += [Line2D(x, y, color=h.get_color(), transform=trans)]
-        return a
+	def create_artists(
+		self,
+		legend,
+		orig_handle,
+		xdescent,
+		ydescent,
+		width,
+		height,
+		fontsize,
+		trans,
+	):
+		size = min(width, height)
+		x0 = xdescent + (width - size) / 2
+		y0 = ydescent + (height - size) / 2
+		a = []
+		for h in orig_handle:
+			if isinstance(h, Rectangle):
+				a += [
+					Rectangle(
+						(x0, y0),
+						size,
+						size,
+						fill=h.get_fill(),
+						facecolor=h.get_facecolor(),
+						edgecolor=h.get_edgecolor(),
+						transform=trans,
+					)
+				]
+			elif isinstance(h, Line2D):
+				x = [x0 + size * xi for xi in h.get_xdata()]
+				y = [y0 + size * yi for yi in h.get_ydata()]
+				a += [Line2D(x, y, color=h.get_color(), transform=trans)]
+		return a
