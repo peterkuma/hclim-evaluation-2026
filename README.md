@@ -91,8 +91,9 @@ calc_stats            Calculate statistics (dep: source_links, remap_landmask, r
 calc_clim_indices     Calculate climate indices.
 calc_model_ranking    Calculate model ranking (dep: calc_stats).
 plot_map_mean         Plot maps for means (dep: calc_stats).
-plot_map_diff         Plot maps for differences between time periods (dep: calc_stats).
 plot_map_trend        Plot maps for linear trends (dep: calc_stats).
+plot_map_diff         Plot maps for differences between time periods (dep: calc_stats).
+plot_map_diff_multi   Plot maps for differences between time periods with multiple periods and scenarios (dep: calc_stats).
 plot_heatmap_mean     Plot heatmaps for means (dep: calc_stats).
 plot_heatmap_diff     Plot heatmaps for differences between time periods (dep: calc_stats).
 plot_heatmap_trend    Plot heatmaps for trends (dep: calc_stats).
