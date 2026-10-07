@@ -2,7 +2,7 @@
 set -e
 shopt -s nullglob
 
-CPUS_TO_JOBS_FACTOR=2
+CPUS_TO_JOBS_FACTOR=4
 
 FREQS=(
 	day
@@ -37,13 +37,25 @@ VARS=(
 	gsstart
 )
 
+VARS_MAP_DIFF_MULTI=(
+	tas
+	pr
+)
+
 PERIODS=(
 	"1991 2020"
+	"2031 2060"
     "2071 2100"
 )
 
 PERIOD_PAIRS=(
 	"1991 2020 2071 2100"
+)
+
+PERIODS_MAP_DIFF_MULTI=(
+	"1991 2020"
+	"2031 2060"
+    "2071 2100"
 )
 
 SEASONS=(
@@ -52,6 +64,11 @@ SEASONS=(
 	JJA
 	SON
 	DJF
+)
+
+SEASONS_MAP_DIFF_MULTI=(
+	DJF
+	JJA
 )
 
 REGIONS=(
@@ -206,7 +223,8 @@ plot_map () {
 	mkdir -p "$out"
 	for var in "${VARS[@]}"; do
 		for season in "${SEASONS[@]}"; do
-			if [[ $type_ == diff ]]; then
+			case "$type_" in
+			diff)
 				for period in "${PERIOD_PAIRS[@]}"; do
 					cmd bin/plot_map \
 						"$type_" \
@@ -217,7 +235,8 @@ plot_map () {
 						$sources \
 						"$out"
 				done
-			else
+				;;
+			*)
 				for period in "${PERIODS[@]}"; do
 					cmd bin/plot_map \
 						"$type_" \
@@ -228,7 +247,7 @@ plot_map () {
 						$sources \
 						"$out"
 				done
-			fi
+			esac
 		done
 	done
 }
@@ -262,8 +281,9 @@ Tasks:
   calc_clim_indices     Calculate climate indices.
   calc_model_ranking    Calculate model ranking (dep: calc_stats).
   plot_map_mean         Plot maps for means (dep: calc_stats).
-  plot_map_diff         Plot maps for differences between time periods (dep: calc_stats).
   plot_map_trend        Plot maps for linear trends (dep: calc_stats).
+  plot_map_diff         Plot maps for differences between time periods (dep: calc_stats).
+  plot_map_diff_multi   Plot maps for differences between time periods with multiple periods and scenarios (dep: calc_stats).
   plot_heatmap_mean     Plot heatmaps for means (dep: calc_stats).
   plot_heatmap_diff     Plot heatmaps for differences between time periods (dep: calc_stats).
   plot_heatmap_trend    Plot heatmaps for trends (dep: calc_stats).
@@ -338,7 +358,6 @@ remap_obs)
 	;;
 
 calc_ensembles)
-	CPUS_TO_JOBS_FACTOR=4
 	mkdir -p data/ensembles
 	for list in "${LISTS_ENS[@]}"; do
 		for freq in "${FREQS_ENS[@]}"; do
@@ -382,6 +401,7 @@ calc_stats)
 				::: "data/stats/$dir/$subtype"/*
 		done
 	done
+	run
 	for list in "${LISTS[@]}"; do
 		for subtype in "${SUBTYPES[@]}"; do
 			cmd bin/index "data/stats/$list/$subtype"
@@ -390,7 +410,6 @@ calc_stats)
 	;;
 
 calc_clim_indices)
-	CPUS_TO_JOBS_FACTOR=4
 	for list in "${LISTS_CLIM_INDICES[@]}"; do
 		for source in $(cat "sources/list/$list"); do
 			dir=data/sources/$source
@@ -440,6 +459,16 @@ plot_map_mean)
 	done
 	;;
 
+plot_map_trend)
+	for list in "${LISTS_MAP_TREND[@]}"; do
+		plot_map \
+			trend \
+			"data/stats/$list/period_season" \
+			"plot/map_trend/$list" \
+			$(cat sources/list/{obs,"$list"})
+	done
+	;;
+
 plot_map_diff)
 	for list in "${LISTS_MAP_DIFF[@]}"; do
 		plot_map \
@@ -450,13 +479,24 @@ plot_map_diff)
 	done
 	;;
 
-plot_map_trend)
-	for list in "${LISTS_MAP_TREND[@]}"; do
-		plot_map \
-			trend \
-			"data/stats/$list/period_season" \
-			"plot/map_trend/$list" \
-			$(cat sources/list/{obs,"$list"})
+plot_map_diff_multi)
+	out=plot/map_diff_multi/hclim_historical+ssp126_historical+ssp370
+	mkdir -p "$out"
+	for var in "${VARS_MAP_DIFF_MULTI[@]}"; do
+		for season in "${SEASONS_MAP_DIFF_MULTI[@]}"; do
+			cmd bin/plot_map \
+				diff_multi \
+				"$var" \
+				"$season" \
+				${#PERIODS_MAP_DIFF_MULTI[@]} \
+				2 \
+				${PERIODS_MAP_DIFF_MULTI[@]} \
+				data/stats/hclim_historical+ssp126/period_season \
+				EUR-12_ENS_historical+ssp126_ENS_ENS_ENS_v1-r1 \
+				data/stats/hclim_historical+ssp370/period_season \
+				EUR-12_ENS_historical+ssp370_ENS_ENS_ENS_v1-r1 \
+				"$out"
+		done
 	done
 	;;
 

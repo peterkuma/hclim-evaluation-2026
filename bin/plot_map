@@ -4,7 +4,7 @@ Usage: bin/plot_map TYPE VAR SEASON START1 END1 [START2 END2] INPUT SOURCE... OU
 
 Arguments:
 
-  TYPE	Plot type. One of: "mean" (period mean), "trend" (period linear trend), or "diff" (period difference).
+  TYPE	Plot type. One of: "mean" (period mean), "trend" (period linear trend), "diff" (period difference), or "diff_multi" (period difference with multiple periods and scenarios)
   VAR	 Variable name.
   SEASON  Season.
   START1  Start year (first period).
@@ -633,7 +633,8 @@ def get_ens_members(dd):
 	for d in dd:
 		if ds.attr(d, "source_id") == "ENS":
 			d_ens = d
-	return ds.attr(d_ens, "ensemble_members") if d_ens is not None else []
+	members = ds.attr(d_ens, "ensemble_members") if d_ens is not None else []
+	return [s.removesuffix("_mon") for s in members]
 
 
 def get_ref(type_, dd, var):
@@ -666,7 +667,7 @@ def init_figure(nrows, ncols):
 		left=(MARGIN / fw),
 		right=((MARGIN + NCOLS * PANEL_WIDTH) / fw),
 	)
-	return fig, figsize, gs
+	return gs
 
 
 def calc_relative(z1, z2, var, units):
@@ -689,12 +690,46 @@ def source_intersection(dd1, dd2):
 	return [dict1[s] for s in sources], [dict2[s] for s in sources]
 
 
-def plot(type_, input_, sources, output, var, name, season, period, index=None):
+def plot_diff_multi(
+	type_, inputs, sources, output, var, name, season, periods, indexes
+):
+	dd = []
+	for input_, index in zip(inputs, indexes):
+		for period in periods:
+			d = read(input_, source, var, name, season, period, index=index)[0]
+			dd += [d]
+
+	bounds_abs, cmap_abs = get_group_bounds_cmap([d_ref], type_, var, False)
+	bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, type_, var, True)
+
+	ncols = 3
+	nrows = 2
+
+
+def plot_generic(
+	type_, inputs, sources, output, var, name, season, periods, indexes
+):
 	has_absolute = False
 	has_relative = False
 	if type_ == "diff":
-		dd1 = read(input_, sources, var, name, season, period[0], index=index)
-		dd2 = read(input_, sources, var, name, season, period[1], index=index)
+		dd1 = read(
+			inputs[0],
+			sources,
+			var,
+			name,
+			season,
+			periods[0],
+			index=indexes[0],
+		)
+		dd2 = read(
+			inputs[0],
+			sources,
+			var,
+			name,
+			season,
+			periods[1],
+			index=indexes[0],
+		)
 		dd1, dd2 = source_intersection(dd1, dd2)
 		dd1 = [copy(dd1[0])] + dd1
 		dd2 = [copy(dd2[0])] + dd2
@@ -714,7 +749,9 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 				units_pretty2 = misc.get_pretty_units(units)
 			ds.attr(d1, "units", units, var="z")
 	else:
-		dd = read(input_, sources, var, name, season, period, index=index)
+		dd = read(
+			inputs[0], sources, var, name, season, periods[0], index=index
+		)
 		d_ref = get_ref(type_, dd, var)
 		d_ens = get_ens(dd)
 		for d in dd:
@@ -737,25 +774,13 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 			ds.attr(d, "units", units, var="z")
 
 	ens_members = get_ens_members(dd)
-	ens_members = [s.removesuffix("_mon") for s in ens_members]
 	dd = [d_ref] + [d for d in dd if d is not d_ref]
 	dd_rel = dd[1:]
-	# dd_rel_wo_ens = [d for d in dd if d is not d_ref and d is not d_ens]
 	dd_ens = [d for d in dd if misc.get_source_name(ds.attrs(d)) in ens_members]
 
 	if type_ == "mean":
-		# paired = [not is_gcm(d) for d in dd_rel_wo_ens]
 		paired = [not is_gcm(d) for d in dd_rel]
 		calc_pvalue_parallel(dd_rel, [d_ref] * len(dd_rel), name, paired=paired)
-		# calc_pvalue_parallel(
-		#	 dd_rel_wo_ens, [d_ref] * len(dd_rel_wo_ens), name, paired=paired
-		# )
-		# d_ens["robust_sign"], d_ens["robust_variability"] = calc_robust_signal(
-		#	 d_ref["year"],
-		#	 [d_ref[f"{name}_ts"]] * len(dd_ens),
-		#	 [d_ref[f"{var}_trend"]] * len(dd_ens),
-		#	 [d["z_raw"] for d in dd_ens],
-		# )
 	elif type_ == "diff":
 		calc_pvalue_parallel(dd1[2:], dd2[2:], name, paired=False)
 		d_ens["robust_sign"], d_ens["robust_variability"] = calc_robust_signal(
@@ -766,22 +791,22 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 		)
 
 	if has_absolute:
-		bounds1, cmap1 = get_group_bounds_cmap([d_ref], type_, var, False)
+		bounds_abs, cmap_abs = get_group_bounds_cmap([d_ref], type_, var, False)
 	if has_relative:
-		bounds2, cmap2 = get_group_bounds_cmap(dd_rel, type_, var, True)
+		bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, type_, var, True)
 
 	n = len(dd)
 	ncols = NCOLS
 	nrows = int(np.ceil(n / ncols))
-	fig, figsize, gs = init_figure(nrows, ncols)
+	gs = init_figure(nrows, ncols)
 
-	for i, d in enumerate(dd):
+for i, d in enumerate(dd):
 		source = misc.get_source_name(ds.attrs(d))
 		row = i // ncols
 		col = i % ncols
 		relative = d is not d_ref or type_ == "trend"
-		bounds = bounds2 if relative else bounds1
-		cmap = cmap2 if relative else cmap1
+		bounds = bounds_rel if relative else bounds_abs
+		cmap = cmap_rel if relative else cmap_abs
 		plot_panel(
 			i,
 			gs[i],
@@ -804,10 +829,10 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 	else:
 		if type_ == "diff":
 			label2 = "%d–%d relative to %d–%d" % (
-				period[1][0],
-				period[1][1],
-				period[0][0],
-				period[0][1],
+				periods[1][0],
+				periods[1][1],
+				periods[0][0],
+				periods[0][1],
 			)
 		else:
 			label2 = "Anomaly from %s" % misc.get_source_title(ds.attrs(d_ref))
@@ -825,8 +850,8 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 	if has_absolute:
 		plot_colorbar(
 			var,
-			bounds1,
-			cmap1,
+			bounds_abs,
+			cmap_abs,
 			letters1 + " " + label1,
 			units_pretty1,
 			False,
@@ -836,8 +861,8 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 	if has_relative:
 		plot_colorbar(
 			var,
-			bounds2,
-			cmap2,
+			bounds_rel,
+			cmap_rel,
 			(letters2 + " " if has_absolute else "") + label2,
 			units_pretty2,
 			True,
@@ -848,32 +873,38 @@ def plot(type_, input_, sources, output, var, name, season, period, index=None):
 	plot_legend(type_, legend_pos, legend_offset, legend_layout)
 
 	title = get_title(
-		type_, label1, season, period, get_scenario(ds.attrs(d_ref))
+		type_, label1, season, periods, get_scenario(ds.attrs(d_ref))
 	)
-	file = get_file_name(type_, var, season, period)
-	plt.suptitle(title, y=(1 - 0.7 * MARGIN / figsize[1]), fontsize=9)
+	file = get_file_name(type_, var, season, periods)
+	plt.suptitle(
+		title, y=(1 - 0.7 * MARGIN / fig.get_size_inches()[1]), fontsize=9
+	)
 	filename = os.path.join(output, file)
 	plt.savefig(filename, bbox_inches="tight")
 	print("-> %s" % filename)
 
 
-def main(type_, var, season, period1, period2, input_, sources, output):
-	period = period1 if period2 is None else [period1, period2]
+def main(type_, var, season, periods, inputs, sources, output):
+	periods = periods[0] if len(periods) == 1 else periods
 	if type_ == "trend":
 		name = f"{var}_trend"
 	else:
 		name = f"{var}_mean"
-	index = io.list_dataset(input_)
-	plot(
+	indexes = [io.list_dataset(input_) for input_ in inputs]
+	if type_ == "diff_multi":
+		func = plot_diff_multi
+	else:
+		func = plot_generic
+	func(
 		type_,
-		input_,
+		inputs,
 		sources,
 		output,
 		var,
 		name,
 		season,
-		period,
-		index=index,
+		periods,
+		index=indexes,
 	)
 
 
@@ -890,22 +921,37 @@ if __name__ == "__main__":
 
 	var = sys.argv[2]
 	season = sys.argv[3]
-	start1 = int(sys.argv[4])
-	end1 = int(sys.argv[5])
-	period1 = [start1, end1]
-	i = 6
-	if type_ == "diff":
-		start2 = int(sys.argv[6])
-		end2 = int(sys.argv[7])
-		period2 = [start2, end2]
-		i += 2
+
+	if type_ == "diff_multi":
+		nperiods = int(sys.argv[4])
+		nsources = int(sys.argv[5])
+		n = 6
+		periods = [
+			[sys.argv[n + 2 * i], sys.argv[n + 2 * i + 1]]
+			for i in range(nperiods)
+		]
+		n += nperiods * 2
+		inputs = sys.argv[n : (n + nsources * 2) : 2]
+		sources = sys.argv[(n + 1) : (n + nsources * 2) : 2]
 	else:
-		period2 = None
-	input_ = sys.argv[i]
-	sources = sys.argv[(i + 1) : -1]
+		start1 = int(sys.argv[4])
+		end1 = int(sys.argv[5])
+		period1 = [start1, end1]
+		n = 6
+		if type_ == "diff":
+			start2 = int(sys.argv[6])
+			end2 = int(sys.argv[7])
+			period2 = [start2, end2]
+			periods = [period1, period2]
+			n += 2
+		else:
+			periods = [period1]
+		inputs = [sys.argv[n]]
+		sources = sys.argv[(n + 1) : -1]
+
 	output = sys.argv[-1]
 
-	if type_ not in ["mean", "trend", "diff"]:
+	if type_ not in ["mean", "trend", "diff", "diff_multi"]:
 		raise ValueError(f"invalid type {type_!r}")
 
-	main(type_, var, season, period1, period2, input_, sources, output)
+	main(type_, var, season, periods, inputs, sources, output)
