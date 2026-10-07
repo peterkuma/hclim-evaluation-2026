@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""
-Usage: bin/plot_map TYPE VAR SEASON START1 END1 [START2 END2] INPUT SOURCE... OUTPUT
+"""Plot a panel plot of maps showing a variable geographical distribution.
+
+Usage: bin/plot_map mean|trend|diff VAR SEASON START1 END1 [START2 END2] INPUT SOURCE... OUTPUT
+       bin/plot_map diff_multi VAR SEASON NPERIODS NSOURCES [START END]... [INPUT SOURCE]... OUTPUT
 
 Arguments:
 
-  TYPE	Plot type. One of: "mean" (period mean), "trend" (period linear trend), "diff" (period difference), or "diff_multi" (period difference with multiple periods and scenarios)
-  VAR	 Variable name.
-  SEASON  Season.
-  START1  Start year (first period).
-  END1	End year (first period).
-  START2  Start year (second period) if the plot type is "diff".
-  END2	End year (second period) if the plot type is "diff".
-  INPUT   Input directory with period-season statistics produced by calc_stats (NetCDF).
-  SOURCE  Source name.
-  OUTPUT  Output directory (PDF).
+  TYPE	    Plot type. One of: "mean" (period mean), "trend" (period linear trend), "diff" (period difference), or "diff_multi" (period difference with multiple periods and scenarios)
+  VAR	    Variable name.
+  SEASON    Season.
+  START1    Start year (first period).
+  END1	    End year (first period).
+  START2    Start year (second period) if the plot type is "diff".
+  END2	    End year (second period) if the plot type is "diff".
+  INPUT     Input directory with period-season statistics produced by calc_stats (NetCDF).
+  SOURCE    Source name.
+  OUTPUT    Output directory (PDF).
+  NPERIODS  Number of periods.
+  NSOURCES  Number of sources.
+  START     Start year.
+  END       End year.
 """
 
 import signal
@@ -68,8 +74,6 @@ SIG_LEVEL = 0.05  # Statistical significance level
 # Only consider latitudes above this number when determining value limits.
 VLIM_CUTOFF_LAT = 37.4  # Exclude Africa
 
-NCOLS = 4
-
 MARGIN = 0.7  # in
 PANEL_WIDTH = 1.413  # in
 PANEL_HEIGHT = 1.8  # in
@@ -82,8 +86,8 @@ LCC_PROJECTION = {
 	"standard_parallels": [49.5],
 }
 
-COLOR_NOENS = "#DDDDDD"
-COLOR_ENS = "#71f4ff"
+COLOR_SHADING = "#DDDDDD"
+COLOR_HIGHLIGHT = "#71f4ff"
 
 
 def get_vlim(x, sym=False, percentile=2, mask=None):
@@ -121,13 +125,12 @@ def get_bounds_cmap(var, relative, vlim):
 	return bounds, cmap
 
 
-def get_group_bounds_cmap(dd, type_, var, relative):
+def get_group_bounds_cmap(dd, var, relative, percentile=2):
 	vlim = [np.inf, -np.inf]
 	for d in dd:
 		mask = d["lat"] >= VLIM_CUTOFF_LAT
 		if relative:
-			p = 15 if var == "pr" or type_ == "diff" else 2
-			vlim1 = get_vlim(d["z"], True, p, mask=mask)
+			vlim1 = get_vlim(d["z"], True, percentile, mask=mask)
 			y = max(vlim[1], vlim1[1])
 			vlim = [-y, y]
 		else:
@@ -140,10 +143,7 @@ def get_panel_title(d):
 	title = misc.get_source_title(ds.attrs(d))
 	if title == "HC(EC-Earth3-Veg)":
 		return (
-			title[:-1]
-			+ "-"
-			+ ds.attr(d, "driving_variant_label")[:2]
-			+ title[-1]
+			title[:-1] + "-" + ds.attr(d, "driving_variant_label")[:2] + title[-1]
 		)
 	elif title == "EC-Earth3-Veg":
 		return title + "-" + ds.attr(d, "variant_label")[:2]
@@ -161,7 +161,7 @@ def init_crs(crs):
 	)
 
 
-def init_map(gs, crs_attrs, xaxis=True, yaxis=True):
+def init_map(subplot, crs_attrs, xaxis=True, yaxis=True):
 	if crs_attrs != {}:
 		crs = init_crs(crs_attrs)
 		data_crs = crs
@@ -169,12 +169,10 @@ def init_map(gs, crs_attrs, xaxis=True, yaxis=True):
 		crs = ccrs.LambertConformal(**LCC_PROJECTION)
 		data_crs = ccrs.PlateCarree()
 
-	ax = plt.gcf().add_subplot(gs, projection=crs)
+	ax = plt.gcf().add_subplot(subplot, projection=crs)
 	ax.set_extent([-10, 30, 33, 75], crs=ccrs.PlateCarree())
 	ax.coastlines("50m", linewidth=0.4, alpha=0.9)
-	ax.add_feature(
-		cfeature.BORDERS, linewidth=0.3, edgecolor="black", alpha=0.8
-	)
+	ax.add_feature(cfeature.BORDERS, linewidth=0.3, edgecolor="black", alpha=0.8)
 
 	gl = ax.gridlines(
 		draw_labels=True,
@@ -199,25 +197,38 @@ def init_map(gs, crs_attrs, xaxis=True, yaxis=True):
 	return ax, crs, data_crs
 
 
-def plot_colorbar(
-	var, bounds, cmap, label, units_pretty, relative, pos, offset
-):
+def create_cb_axes_generic(nrows, ncols, pos, offset):
 	shrink = 0 if pos == 0 else 0.2
 	vert_offset = 0 if pos == 0 else PANEL_HEIGHT
 	loc = [
 		MARGIN + PANEL_WIDTH * pos + shrink,
 		0.3 - offset * 0.3 + vert_offset,
-		PANEL_WIDTH * (NCOLS - pos) - shrink,
+		PANEL_WIDTH * (ncols - pos) - shrink,
 		0.1,
 	]
 	fw, fh = plt.gcf().get_size_inches()
 	loc = np.array(loc) / np.array([fw, fh, fw, fh])
-	cax = plt.gcf().add_axes(loc)
+	return plt.gcf().add_axes(loc)
+
+
+def create_cb_axes_diff_multi(nrows, ncols, pos):
+	loc = [
+		MARGIN + PANEL_WIDTH * ncols + 0.15 + pos * 0.7,
+		MARGIN,
+		0.1,
+		PANEL_HEIGHT * nrows,
+	]
+	fw, fh = plt.gcf().get_size_inches()
+	loc = np.array(loc) / np.array([fw, fh, fw, fh])
+	return plt.gcf().add_axes(loc)
+
+
+def plot_cb(cax, var, bounds, cmap, label, units_pretty, rel, vertical=False):
 	extend = "max" if (var == "pr" and bounds[0] == 0) else "both"
-	if var == "psl" and not relative:
+	if var == "psl" and not rel:
 		fmt = mpl.ticker.FuncFormatter(lambda x, pos: f"{int(x) % 100:2d}")
 		units_pretty = units_pretty + "; last two digits"
-	elif var == "pr" and relative:
+	elif var == "pr" and rel:
 		fmt = mpl.ticker.FuncFormatter(
 			lambda x, pos: f"{100 * (np.exp(x) - 1):.0f}"
 		)
@@ -229,7 +240,7 @@ def plot_colorbar(
 	cb = plt.gcf().colorbar(
 		mpl.cm.ScalarMappable(norm=norm, cmap=cmap),
 		cax=cax,
-		orientation="horizontal",
+		orientation=("vertical" if vertical else "horizontal"),
 		extend=extend,
 		ticks=bounds,
 		format=fmt,
@@ -256,8 +267,8 @@ def plot_legend(type_, pos, offset, layout):
 		bbox_to_anchor = np.array(bbox_to_anchor) / np.array([fw, fh])
 		loc = "upper left"
 
-	noens = Rectangle((0, 0), 1, 1, facecolor=COLOR_NOENS, edgecolor="none")
-	ens = Rectangle((0, 0), 1, 1, facecolor=COLOR_ENS, edgecolor="none")
+	noens = Rectangle((0, 0), 1, 1, facecolor=COLOR_SHADING, edgecolor="none")
+	ens = Rectangle((0, 0), 1, 1, facecolor=COLOR_HIGHLIGHT, edgecolor="none")
 	notrobust = (Line2D([0, 1], [1, 0], color="k"),)
 	conflicting = (
 		Line2D([0, 1], [1, 0], color="k"),
@@ -274,9 +285,7 @@ def plot_legend(type_, pos, offset, layout):
 		handles += [notrobust, conflicting]
 		labels += ["No change or no robust signal", "Conflicting signals"]
 	handles += [nonsig]
-	labels += [
-		"Non-significant " + ("trend" if type_ == "trend" else "anomaly")
-	]
+	labels += ["Non-significant " + ("trend" if type_ == "trend" else "anomaly")]
 
 	plt.gcf().legend(
 		handles,
@@ -334,17 +343,14 @@ def plot_hatching(marker, ind, source_coordinates, lon, lat, x, y, crs):
 	)
 
 
-def plot_panel_title(i, title, in_ensemble=False):
-	letter = string.ascii_lowercase[i]
+def plot_panel_title(title, highlight=False):
 	plt.text(
 		0.009,
 		0.992,
-		("(%s) " % letter) + title,
+		title,
 		transform=plt.gca().transAxes,
 		bbox=dict(
-			facecolor=(
-				COLOR_ENS if in_ensemble or title == "ENS" else COLOR_NOENS
-			),
+			facecolor=(COLOR_HIGHLIGHT if highlight else COLOR_SHADING),
 			edgecolor="none",
 			boxstyle="square,pad=0.1",
 			alpha=0.9,
@@ -370,23 +376,19 @@ def plot_panel_data(z, extent, cmap, bounds, data_crs):
 
 
 def plot_panel(
-	i,
-	gs,
+	subplot,
 	d,
 	name,
 	xaxis=True,
 	yaxis=True,
 	bounds=None,
 	cmap=None,
-	in_ensemble=False,
-	title_period=False,
+	highlight=False,
+	title=None,
 ):
 	figsize = plt.gcf().get_size_inches()
 	attrs = ds.attrs(d, name)
-	title = get_panel_title(d)
-	if title_period:
-		title += " " + ds.attr(d, "period").replace("-", "–")
-	ax, crs, data_crs = init_map(gs, ds.attrs(d, "crs"), xaxis, yaxis)
+	ax, crs, data_crs = init_map(subplot, ds.attrs(d, "crs"), xaxis, yaxis)
 
 	if "x" in d and "y" in d:
 		source_coordinates = "xy"
@@ -449,7 +451,7 @@ def plot_panel(
 			y,
 			crs,
 		)
-	plot_panel_title(i, title, in_ensemble)
+	plot_panel_title(title, d.get("panel_highlight", False))
 
 
 def read(input_, sources, var, name, season, period, index=None):
@@ -466,6 +468,11 @@ def read(input_, sources, var, name, season, period, index=None):
 		"lat",
 		"crs",
 	]
+	if not isinstance(sources, list):
+		sources = [sources]
+		collapse = True
+	else:
+		collapse = False
 	for i, source in enumerate(sources):
 		desc = misc.parse_source(source)
 		desc.update(
@@ -485,29 +492,18 @@ def read(input_, sources, var, name, season, period, index=None):
 		):
 			continue
 
-		dd1 = io.read_dataset(
-			input_, desc, vars, False, req_one=True, index=index
-		)
+		dd1 = io.read_dataset(input_, desc, vars, False, req_one=True, index=index)
 		d = dd1[0]
 		dd += [d]
-	return dd
+	return dd[0] if collapse else dd
 
 
 def is_gcm(d):
 	attrs = ds.attrs(d)
-	return "driving_source_id" not in attrs or attrs[
-		"driving_source_id"
-	] not in [
+	return "driving_source_id" not in attrs or attrs["driving_source_id"] not in [
 		"OBS",
 		"REAN",
 		"ERA5",
-	]
-
-
-def get_figsize(nrows, ncols):
-	return [
-		2 * MARGIN + NCOLS * PANEL_WIDTH,
-		2 * MARGIN + nrows * PANEL_HEIGHT,
 	]
 
 
@@ -551,17 +547,17 @@ def calc_robust_signal(year, mean, trend, diff):
 	Box Atlas.1 | Displaying Robustness and Uncertainty in Maps.
 
 	Arguments:
-		year - years corresponding to xx1
-		mean - fields for the "modern"(reference) time period
-		trend - trend in the "modern" (reference) field
-		diff - fields for the future (deviation) as anomalies from mean
+	                year - years corresponding to xx1
+	                mean - fields for the "modern"(reference) time period
+	                trend - trend in the "modern" (reference) field
+	                diff - fields for the future (deviation) as anomalies from mean
 
 	Returns:
-		robust_sign - field signifying where at least 80% of models agree on the
-					  sign of change
-		robust_variability - field signifying where at least 66% of models show
-							 greater change that the variability in the "modern"
-							 time period
+	                robust_sign - field signifying where at least 80% of models agree on the
+	                                                                  sign of change
+	                robust_variability - field signifying where at least 66% of models show
+	                                                                                                 greater change that the variability in the "modern"
+	                                                                                                 time period
 	"""
 	# Sign agreement condition.
 	positive = np.array([x > 0 for x in diff])
@@ -609,23 +605,13 @@ def get_title(type_, var_label, season, period, scenario):
 		)
 
 
-def get_file_name(type_, var, season, period):
-	if type_ == "diff":
-		return "%s_%s_%d-%d_%d-%d.pdf" % (
-			var,
-			season,
-			period[0][0],
-			period[0][1],
-			period[1][0],
-			period[1][1],
-		)
-	else:
-		return "%s_%s_%d-%d.pdf" % (
-			var,
-			season,
-			period[0],
-			period[1],
-		)
+def get_file_name(var, season, periods):
+	s = "%s_%s" % (var, season)
+	for period in periods:
+		s += "_%d-%d" % (period[0], period[1])
+	return s
+	s += ".pdf"
+	return s
 
 
 def get_ens_members(dd):
@@ -654,7 +640,10 @@ def get_ens(dd):
 
 
 def init_figure(nrows, ncols):
-	figsize = get_figsize(nrows, ncols)
+	figsize = [
+		2 * MARGIN + ncols * PANEL_WIDTH,
+		2 * MARGIN + nrows * PANEL_HEIGHT,
+	]
 	fig = plt.figure(figsize=figsize)
 	fw, fh = figsize
 	gs = GridSpec(
@@ -665,7 +654,7 @@ def init_figure(nrows, ncols):
 		bottom=(MARGIN / fh),
 		top=(1 - MARGIN / fh),
 		left=(MARGIN / fw),
-		right=((MARGIN + NCOLS * PANEL_WIDTH) / fw),
+		right=((MARGIN + ncols * PANEL_WIDTH) / fw),
 	)
 	return gs
 
@@ -690,27 +679,165 @@ def source_intersection(dd1, dd2):
 	return [dict1[s] for s in sources], [dict2[s] for s in sources]
 
 
+def plot_panels(gs, dd, name, bounds_abs, bounds_rel, cmap_abs, cmap_rel):
+	for i, d in enumerate(dd):
+		row = i // gs.ncols
+		col = i % gs.ncols
+		relative = "z_raw" in d
+		bounds = bounds_rel if relative else bounds_abs
+		cmap = cmap_rel if relative else cmap_abs
+		letter = string.ascii_lowercase[i]
+		title = "(%s)" % letter
+		if "panel_title" in d:
+			title += " " + d["panel_title"]
+		plot_panel(
+			gs[i],
+			d,
+			name,
+			xaxis=(row == gs.nrows - 1 and col == 0),
+			yaxis=(row == gs.nrows - 1 and col == 0),
+			bounds=bounds,
+			cmap=cmap,
+			highlight=d.get("highlight", False),
+			title=title,
+		)
+		if "xaxis_label" in d:
+			plt.gca().text(
+				0.5,
+				1.02,
+				d["xaxis_label"],
+				transform=plt.gca().transAxes,
+				ha="center",
+				va="bottom",
+				fontsize=9,
+			)
+		if "yaxis_label" in d:
+			plt.gca().text(
+				-0.35,
+				0.5,
+				d["yaxis_label"],
+				transform=plt.gca().transAxes,
+				rotation=90,
+				ha="left",
+				va="center",
+				fontsize=9,
+			)
+
+
+def savefig(output, file, title):
+	filename = os.path.join(output, file + ".pdf")
+	plt.savefig(filename, bbox_inches="tight")
+	print("-> %s" % filename)
+
+
 def plot_diff_multi(
 	type_, inputs, sources, output, var, name, season, periods, indexes
 ):
 	dd = []
-	for input_, index in zip(inputs, indexes):
-		for period in periods:
-			d = read(input_, source, var, name, season, period, index=index)[0]
+	for i, (input_, source, index) in enumerate(zip(inputs, sources, indexes)):
+		d_row_ref = None
+		for j, period in enumerate(periods):
+			d = read(input_, source, var, name, season, period, index)
+			units = ds.attr(d, "units", var=name)
+			ens_members = ds.attr(d, "ensemble_members")
+			d["dd_ens"] = [
+				read(input_, member, var, name, season, period, index)
+				for member in ens_members
+			]
+			if j == 0:
+				d_row_ref = d
+				d["z"], units = misc.convert_pretty_units(d[name], units)
+				has_abs = True
+				units_pretty_abs = misc.get_pretty_units(units)
+			else:
+				d["z_raw"] = d[name] - d_row_ref[name]
+				d["z"], units = calc_relative(d[name], d_row_ref[name], var, units)
+				has_rel = True
+				units_pretty_rel = misc.get_pretty_units(units)
+				for d_ens, d_ens_ref in zip(d["dd_ens"], d_row_ref["dd_ens"]):
+					d_ens["z_raw"] = d_ens[name] - d_ens_ref[name]
+				d["robust_sign"], d["robust_variability"] = calc_robust_signal(
+					d["year"],
+					[d_ens[f"{name}_ts"] for d_ens in d["dd_ens"]],
+					[d_ens[f"{var}_trend"] for d_ens in d["dd_ens"]],
+					[d_ens["z_raw"] for d_ens in d["dd_ens"]],
+				)
+			if i == 0:
+				d["xaxis_label"] = "%d–%d" % (period[0], period[1])
+			if j == 0:
+				exp = d["."]["."]["driving_experiment_id"]
+				d["yaxis_label"] = {
+					"historical+ssp126": "SSP1-2.6",
+					"historical+ssp370": "SSP3-7.0",
+				}.get(exp, exp)
+			ds.attr(d, "units", units, var="z")
 			dd += [d]
 
-	bounds_abs, cmap_abs = get_group_bounds_cmap([d_ref], type_, var, False)
-	bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, type_, var, True)
+	d_ref = dd[0]
+	dd_rel = [d for d in dd if "z_raw" in d]
+	percentile = 15 if var == "pr" else 2
+	bounds_abs, cmap_abs = get_group_bounds_cmap([d_ref], var, False, percentile)
+	bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, var, True, percentile)
 
-	ncols = 3
-	nrows = 2
+	n = len(dd)
+	ncols = len(periods)
+	nrows = len(inputs)
+	gs = init_figure(nrows, ncols)
+	plot_panels(gs, dd, name, bounds_abs, bounds_rel, cmap_abs, cmap_rel)
+
+	label_abs = misc.get_pretty_var_label(ds.attr(d_ref, "long_name", var=name))
+	label_rel = "Anomaly from %d–%d" % (periods[0][0], periods[0][1])
+
+	letters_abs = [string.ascii_lowercase[i] for i in range(0, n, ncols)]
+	letters_abs = "(" + ", ".join(letters_abs) + ")"
+	letters_rel = [
+		"%s–%s"
+		% (
+			string.ascii_lowercase[i * ncols + 1],
+			string.ascii_lowercase[(i + 1) * ncols - 1],
+		)
+		for i in range(nrows)
+	]
+	letters_rel = "(" + ", ".join(letters_rel) + ")"
+
+	cax_abs = create_cb_axes_diff_multi(nrows, ncols, 0)
+	cax_rel = create_cb_axes_diff_multi(nrows, ncols, 1)
+
+	plot_cb(
+		cax_abs,
+		var,
+		bounds_abs,
+		cmap_abs,
+		letters_abs + " " + label_abs,
+		units_pretty_abs,
+		False,
+		True,
+	)
+	plot_cb(
+		cax_rel,
+		var,
+		bounds_rel,
+		cmap_rel,
+		letters_rel + " " + label_rel,
+		units_pretty_rel,
+		True,
+		True,
+	)
+
+	title = "%s ensemble mean" % season
+	plt.suptitle(
+		title, y=(1 - 0.5 * MARGIN / plt.gcf().get_size_inches()[1]), fontsize=9
+	)
+
+	file = get_file_name(var, season, periods)
+	savefig(output, file, title)
 
 
 def plot_generic(
 	type_, inputs, sources, output, var, name, season, periods, indexes
 ):
-	has_absolute = False
-	has_relative = False
+	has_abs = False
+	has_rel = False
 	if type_ == "diff":
 		dd1 = read(
 			inputs[0],
@@ -733,48 +860,57 @@ def plot_generic(
 		dd1, dd2 = source_intersection(dd1, dd2)
 		dd1 = [copy(dd1[0])] + dd1
 		dd2 = [copy(dd2[0])] + dd2
-		dd = dd1
 		d_ref = dd[0]
 		d_ens = dd[1]
+		dd = []
 		for d1, d2 in zip(dd1, dd2):
+			d = d1
 			units = ds.attr(d1, "units", var=name)
 			if d1 is d_ref:
-				d1["z"], units = misc.convert_pretty_units(d1[name], units)
-				has_absolute = True
-				units_pretty1 = misc.get_pretty_units(units)
+				d["z"], units = misc.convert_pretty_units(d1[name], units)
+				has_abs = True
+				units_pretty_abs = misc.get_pretty_units(units)
 			else:
-				d1["z_raw"] = d2[name] - d1[name]
-				d1["z"], units = calc_relative(d2[name], d1[name], var, units)
-				has_relative = True
-				units_pretty2 = misc.get_pretty_units(units)
-			ds.attr(d1, "units", units, var="z")
+				d["z_raw"] = d2[name] - d1[name]
+				d["z"], units = calc_relative(d2[name], d1[name], var, units)
+				has_rel = True
+				units_pretty_rel = misc.get_pretty_units(units)
+			ds.attr(d, "units", units, var="z")
+			dd += [d]
 	else:
-		dd = read(
-			inputs[0], sources, var, name, season, periods[0], index=index
-		)
-		d_ref = get_ref(type_, dd, var)
-		d_ens = get_ens(dd)
+		dd = read(inputs[0], sources, var, name, season, periods[0], index=index)
+		d_ref = get_ref(type_, dd1, var)
+		d_ens = get_ens(dd1)
 		for d in dd:
 			if type_ == "trend":
 				units = ds.attr(d, "units", var=name)
 				d["z"], units = misc.convert_pretty_units(d[name], units)
-				has_relative = True
-				units_pretty2 = misc.get_pretty_units(units)
+				has_rel = True
+				units_pretty_rel = misc.get_pretty_units(units)
 			elif d is d_ref:
 				units = ds.attr(d, "units", var=name)
 				d["z"], units = misc.convert_pretty_units(d[name], units)
-				has_absolute = True
-				units_pretty1 = misc.get_pretty_units(units)
+				has_abs = True
+				units_pretty_abs = misc.get_pretty_units(units)
 			else:
 				units = ds.attr(d, "units", var=name)
 				d["z"], units = calc_relative(d[name], d_ref[name], var, units)
 				d["z_raw"] = d[name] - d_ref[name]
-				has_relative = True
-				units_pretty2 = misc.get_pretty_units(units)
+				has_rel = True
+				units_pretty_rel = misc.get_pretty_units(units)
 			ds.attr(d, "units", units, var="z")
+			dd += [d]
 
 	ens_members = get_ens_members(dd)
 	dd = [d_ref] + [d for d in dd if d is not d_ref]
+
+	for i, d in enumerate(dd):
+		source = misc.get_source_name(ds.attrs(d))
+		d["panel_highlight"] = source in ens_members or title == "ENS"
+		d["panel_title"] = get_panel_title(d)
+		if type_ == "diff" and i == 0:
+			d["panel_title"] += " " + ds.attr(d, "period").replace("-", "–")
+
 	dd_rel = dd[1:]
 	dd_ens = [d for d in dd if misc.get_source_name(ds.attrs(d)) in ens_members]
 
@@ -790,102 +926,80 @@ def plot_generic(
 			[d["z_raw"] for d in dd_ens],
 		)
 
-	if has_absolute:
-		bounds_abs, cmap_abs = get_group_bounds_cmap([d_ref], type_, var, False)
-	if has_relative:
-		bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, type_, var, True)
+	percentile = 15 if var == "pr" or type_ == "diff" else 2
+	if has_abs:
+		bounds_abs, cmap_abs = get_group_bounds_cmap(
+			[d_ref], var, False, percentile
+		)
+	if has_rel:
+		bounds_rel, cmap_rel = get_group_bounds_cmap(dd_rel, var, True, percentile)
 
 	n = len(dd)
-	ncols = NCOLS
+	ncols = 4
 	nrows = int(np.ceil(n / ncols))
 	gs = init_figure(nrows, ncols)
+	plot_panels(gs, dd, bounds_abs, bounds_rel, cmap_abs, cmap_rel)
 
-for i, d in enumerate(dd):
-		source = misc.get_source_name(ds.attrs(d))
-		row = i // ncols
-		col = i % ncols
-		relative = d is not d_ref or type_ == "trend"
-		bounds = bounds_rel if relative else bounds_abs
-		cmap = cmap_rel if relative else cmap_abs
-		plot_panel(
-			i,
-			gs[i],
-			d,
-			name,
-			xaxis=(row == nrows - 1 and col == 0),
-			yaxis=(row == nrows - 1 and col == 0),
-			bounds=bounds,
-			cmap=cmap,
-			in_ensemble=source in ens_members,
-			title_period=(type_ == "diff" and i == 0),
-		)
-
-	label1 = misc.get_pretty_var_label(ds.attr(d_ref, "long_name", var=name))
-	letters1 = "(a)"
-	colorbar_offset1 = 0
+	label_abs = misc.get_pretty_var_label(ds.attr(d_ref, "long_name", var=name))
+	cb_offset_abs = 0
 	if type_ == "trend":
-		label2 = label1
-		colorbar_offset2 = 0
+		label_rel = label_abs
+		cb_offset_rel = 0
 	else:
 		if type_ == "diff":
-			label2 = "%d–%d relative to %d–%d" % (
+			label_rel = "%d–%d relative to %d–%d" % (
 				periods[1][0],
 				periods[1][1],
 				periods[0][0],
 				periods[0][1],
 			)
 		else:
-			label2 = "Anomaly from %s" % misc.get_source_title(ds.attrs(d_ref))
-		colorbar_offset2 = 2
+			label_rel = "Anomaly from %s" % misc.get_source_title(ds.attrs(d_ref))
+		cb_offset_rel = 2
 
-	letters2 = "(b–" + string.ascii_lowercase[len(dd) - 1] + ")"
+	letters_abs = "(a)"
+	letters_rel = "(b–" + string.ascii_lowercase[len(dd) - 1] + ")"
 
 	k = len(dd) % ncols
-	colorbar_pos = k if k == 1 else 0
+	cb_pos = k if k == 1 else 0
 	legend_pos = k if k == 2 or k == 1 and type_ != "diff" else 0
 	legend_layout = "vertical" if k == 2 else "horizontal"
-	ncolorbars = has_absolute + has_relative
-	legend_offset = ncolorbars if legend_pos == colorbar_pos else 0
+	ncolorbars = has_abs + has_rel
+	legend_offset = ncolorbars if legend_pos == cb_pos else 0
 
-	if has_absolute:
-		plot_colorbar(
+	if has_abs:
+		cax = create_cb_axes_generic(nrows, ncols, cb_pos, cb_offset_abs)
+		plot_cb(
+			cax,
 			var,
 			bounds_abs,
 			cmap_abs,
-			letters1 + " " + label1,
-			units_pretty1,
+			letters_abs + " " + label_abs,
+			units_pretty_abs,
 			False,
-			colorbar_pos,
-			colorbar_offset1,
 		)
-	if has_relative:
-		plot_colorbar(
+	if has_rel:
+		cax = create_cb_axes_generic(nrows, ncols, cb_pos, cb_offset_rel)
+		plot_cb(
 			var,
 			bounds_rel,
 			cmap_rel,
-			(letters2 + " " if has_absolute else "") + label2,
-			units_pretty2,
+			(letters_rel + " " if has_abs else "") + label_rel,
+			units_pretty_rel,
 			True,
-			colorbar_pos,
-			colorbar_offset2,
 		)
-
 	plot_legend(type_, legend_pos, legend_offset, legend_layout)
-
 	title = get_title(
-		type_, label1, season, periods, get_scenario(ds.attrs(d_ref))
+		type_, label_abs, season, periods, get_scenario(ds.attrs(d_ref))
 	)
-	file = get_file_name(type_, var, season, periods)
 	plt.suptitle(
-		title, y=(1 - 0.7 * MARGIN / fig.get_size_inches()[1]), fontsize=9
+		title, y=(1 - 0.7 * MARGIN / plt.gcf().get_size_inches()[1]), fontsize=9
 	)
-	filename = os.path.join(output, file)
-	plt.savefig(filename, bbox_inches="tight")
-	print("-> %s" % filename)
+	file = get_file_name(var, season, periods)
+	savefig(output, file, title)
 
 
 def main(type_, var, season, periods, inputs, sources, output):
-	periods = periods[0] if len(periods) == 1 else periods
 	if type_ == "trend":
 		name = f"{var}_trend"
 	else:
@@ -904,7 +1018,7 @@ def main(type_, var, season, periods, inputs, sources, output):
 		name,
 		season,
 		periods,
-		index=indexes,
+		indexes=indexes,
 	)
 
 
@@ -927,16 +1041,14 @@ if __name__ == "__main__":
 		nsources = int(sys.argv[5])
 		n = 6
 		periods = [
-			[sys.argv[n + 2 * i], sys.argv[n + 2 * i + 1]]
+			[int(sys.argv[n + 2 * i]), int(sys.argv[n + 2 * i + 1])]
 			for i in range(nperiods)
 		]
 		n += nperiods * 2
 		inputs = sys.argv[n : (n + nsources * 2) : 2]
 		sources = sys.argv[(n + 1) : (n + nsources * 2) : 2]
 	else:
-		start1 = int(sys.argv[4])
-		end1 = int(sys.argv[5])
-		period1 = [start1, end1]
+		period1 = [int(sys.argv[4]), int(sys.argv[5])]
 		n = 6
 		if type_ == "diff":
 			start2 = int(sys.argv[6])
